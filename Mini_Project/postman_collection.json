@@ -1,0 +1,281 @@
+{
+	"info": {
+		"_postman_id": "rate-limiting-demo-2024",
+		"name": "🚦 Dynamic API Rate Limiting Demo - ISA Seminar",
+		"description": "Postman collection for demonstrating Dynamic API Rate Limiting & Throttling.\n\nErbil Polytechnic University - Information Systems Architecture (ISA) Seminar.\n\n## Setup\n1. Run `php artisan serve` in the project folder\n2. Set `base_url` variable to `http://127.0.0.1:8000`\n3. Run `php artisan cache:clear` before each demo to reset counters\n\n## Test Accounts\n- Normal User: user@example.com / password123 (6 req/min)\n- VIP User: vip@example.com / password123 (20 req/min)\n- Guest (no token): 3 req/min",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8000",
+			"type": "string"
+		},
+		{
+			"key": "user_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "vip_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "active_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Scenario A - Burst Comparison",
+			"description": "Compare unprotected vs protected endpoints.\n\nUse Postman Collection Runner with 15 iterations to see the difference:\n- Unprotected: all 15 requests succeed (200)\n- Protected (Guest): only first 3 succeed, rest get 429",
+			"item": [
+				{
+					"name": "GET Products - Unprotected (No Throttle)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/products-unprotected",
+							"host": ["{{base_url}}"],
+							"path": ["api", "products-unprotected"]
+						},
+						"description": "No rate limiting applied. All requests will succeed.\nUse Collection Runner with 15 iterations - all should return 200."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Products - Protected (Guest, 3/min)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/products-protected",
+							"host": ["{{base_url}}"],
+							"path": ["api", "products-protected"]
+						},
+						"description": "Rate limited: Guest tier = 3 requests per minute.\nUse Collection Runner with 15 iterations:\n- First 3 requests: 200 OK\n- Requests 4-15: 429 Too Many Requests"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Scenario B - Dynamic Tiers",
+			"description": "Login as Normal User and VIP User, then test the same endpoint with different tokens.\n\nRun requests in order:\n1. Login Normal User → auto-saves user_token\n2. Login VIP User → auto-saves vip_token\n3. Test products with user_token (6/min limit)\n4. Test products with vip_token (20/min limit)\n5. Test /me with user_token",
+			"item": [
+				{
+					"name": "POST Login - Normal User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Auto-save the token to collection variable",
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('user_token', jsonData.token);",
+									"    pm.collectionVariables.set('active_token', jsonData.token);",
+									"    pm.test('Normal User login successful', function () {",
+									"        pm.expect(jsonData.status).to.eql('success');",
+									"        pm.expect(jsonData.user.role).to.eql('user');",
+									"    });",
+									"    console.log('✅ user_token saved:', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "login"]
+						},
+						"description": "Login as Normal User (role: user, 6 req/min).\nThe post-response script auto-saves the token to {{user_token}}."
+					},
+					"response": []
+				},
+				{
+					"name": "POST Login - VIP User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Auto-save the token to collection variable",
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('vip_token', jsonData.token);",
+									"    pm.collectionVariables.set('active_token', jsonData.token);",
+									"    pm.test('VIP User login successful', function () {",
+									"        pm.expect(jsonData.status).to.eql('success');",
+									"        pm.expect(jsonData.user.role).to.eql('vip');",
+									"    });",
+									"    console.log('✅ vip_token saved:', jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"vip@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "login"]
+						},
+						"description": "Login as VIP User (role: vip, 20 req/min).\nThe post-response script auto-saves the token to {{vip_token}}."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Products - Normal User (6/min)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{user_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/products-protected",
+							"host": ["{{base_url}}"],
+							"path": ["api", "products-protected"]
+						},
+						"description": "Same endpoint as Guest test, but now with Normal User token.\nRate limit: 6 requests per minute.\nCheck X-RateLimit-Limit header = 6."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Products - VIP User (20/min)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{vip_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/products-protected",
+							"host": ["{{base_url}}"],
+							"path": ["api", "products-protected"]
+						},
+						"description": "Same endpoint, but now with VIP User token.\nRate limit: 20 requests per minute.\nCheck X-RateLimit-Limit header = 20."
+					},
+					"response": []
+				},
+				{
+					"name": "GET /me - Authenticated User Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{active_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/me",
+							"host": ["{{base_url}}"],
+							"path": ["api", "me"]
+						},
+						"description": "Returns the authenticated user's profile.\nRequires valid Sanctum Bearer token.\nAlso protected by tiered-api rate limiter."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Scenario C - Brute-Force Protection",
+			"description": "Test brute-force login protection.\n\nSend this request 4+ times rapidly:\n- First 3 attempts: 401 Invalid credentials\n- 4th attempt: 429 Too Many Requests (blocked!)",
+			"item": [
+				{
+					"name": "POST Login - Wrong Password (Brute Force)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"user@example.com\",\n    \"password\": \"wrongpass\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "login"]
+						},
+						"description": "Simulates a brute-force attack with wrong password.\nRate limited: 3 attempts per minute per email+IP.\n\nSend 4+ times rapidly:\n- Attempts 1-3: 401 Invalid credentials\n- Attempt 4+: 429 Too many login attempts"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
+
